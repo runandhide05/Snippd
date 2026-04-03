@@ -9,8 +9,7 @@ Type `;email`  get your full email template. Type `;addr`  get your full address
 
 ##  Screenshots
 
-> *(Add screenshot or GIF of Snippd in action here)*
-
+![Snippd](ScreenShots/screenshots_snippd.jpg)
 ---
 
 ##  Features
