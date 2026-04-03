@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snippd</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="header">
+    <span class="logo">Snippd</span>
+    <button id="btn-add" class="btn-primary">+ Add Snippet</button>
+  </div>
+
+  <!-- V2 Toolbar: search + import/export -->
+  <div class="toolbar" id="toolbar">
+    <input type="search" id="search-input" placeholder="Search snippets…" autocomplete="off" />
+    <div class="toolbar-actions">
+      <button id="btn-export" class="btn-ghost">Export</button>
+      <label class="btn-ghost">
+        Import
+        <input type="file" id="import-file" accept=".json" style="display:none" />
+      </label>
+    </div>
+  </div>
+
+  <!-- V2 Category filter bar -->
+  <div class="category-bar hidden" id="category-bar"></div>
+
+  <!-- Add / Edit Form -->
+  <div id="form-section" class="form-section hidden">
+    <div class="form-title" id="form-title">New Snippet</div>
+    <label for="input-label">Label</label>
+    <input type="text" id="input-label" placeholder="e.g. Email Reply" maxlength="100" />
+    <label for="input-trigger">Trigger <span class="hint">(must start with ;)</span></label>
+    <input type="text" id="input-trigger" placeholder=";email" maxlength="50" />
+    <label for="input-expansion">Expansion</label>
+    <textarea id="input-expansion" placeholder="Text that will replace the trigger..." maxlength="5000" rows="5"></textarea>
+    <label for="input-category">Category <span class="hint">(optional)</span></label>
+    <div class="category-input-row">
+      <select id="input-category"><option value="">— None —</option></select>
+      <button type="button" id="btn-new-category" class="btn-ghost-small">+ New</button>
+    </div>
+    <input type="text" id="input-new-category" placeholder="Category name…" maxlength="50" class="hidden" />
+    <div class="form-actions">
+      <button id="btn-cancel" class="btn-secondary">Cancel</button>
+      <button id="btn-save" class="btn-primary">Save</button>
+    </div>
+    <div id="form-error" class="form-error hidden"></div>
+  </div>
+
+  <!-- Snippet List -->
+  <div id="list-section">
+    <div id="snippet-list"></div>
+    <div id="empty-state" class="empty-state hidden">
+      <p>No snippets yet.</p>
+      <p>Click <strong>+ Add Snippet</strong> to create one.</p>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
