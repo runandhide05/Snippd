@@ -26,8 +26,9 @@ Type `;email`  get your full email template. Type `;addr`  get your full address
 
 ##  Install
 
-<!-- ### From the Chrome Web Store
- [Install Snippd](https://chromewebstore.google.com/detail/snippd) *(update link after approval)* -->
+### From the Chrome Web Store
+*(coming soon?)*
+ <!-- [Install Snippd](https://chromewebstore.google.com/detail/snippd) *(update link after approval)* -->
 
 ### From Source
 1. Clone this repo
