@@ -10,6 +10,8 @@ Type `;email`  get your full email template. Type `;addr`  get your full address
 ##  Screenshots
 
 ![Snippd](ScreenShots/screenshots_snippd.jpg)
+
+![Snippd in action](ScreenShots/Snippd.gif)
 ---
 
 ##  Features
