@@ -62,6 +62,30 @@ Type `;email`  get your full email template. Type `;addr`  get your full address
 
 ---
 
+### Dynamic Variables
+
+Add live values to any snippet using `{{variable}}` placeholders — they're replaced with the current date, time, and more the moment you expand the trigger.
+
+| Variable | Example Output |
+|----------|---------------|
+| `{{date}}` | April 4, 2026 |
+| `{{date:MM/DD/YY}}` | 04/04/26 |
+| `{{time}}` | 2:30 PM |
+| `{{datetime}}` | April 4, 2026, 2:30 PM |
+| `{{day}}` | Saturday |
+| `{{month}}` | April |
+| `{{year}}` | 2026 |
+| `{{cursor}}` | *(places your cursor here after expansion)* |
+
+**Example** — a snippet with trigger `;note` and expansion:
+```
+{{date}} — 
+{{cursor}}
+```
+Expands to today's date on the first line, with your cursor ready to type on the second line.
+
+---
+
 ##  Roadmap
 
 ### V1  Live 
@@ -76,6 +100,10 @@ Type `;email`  get your full email template. Type `;addr`  get your full address
 - [x] Import / export snippets as JSON
 - [x] Keyboard shortcut to open popup (type ;snippd on any page)
 - [x] Snippet usage counter
+
+### V3  Live 
+- [x] Dynamic variables — `{{date}}`, `{{time}}`, `{{datetime}}`, `{{day}}`, `{{month}}`, `{{year}}`, `{{cursor}}`
+- [x] UI redesign — snippet cards, gradient header, expansion previews
 
 ---
 
