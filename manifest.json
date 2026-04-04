@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Snippd",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Expand short trigger words into full text snippets. Type ;snippd to expand.",
   "permissions": ["storage"],
   "host_permissions": ["<all_urls>"],
