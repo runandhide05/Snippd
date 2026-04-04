@@ -1,15 +1,13 @@
 (() => {
   let snippets = [];
 
-  // ── Undo state ──
-  let lastExpansion = null;
-  let undoTimer = null;
-
   // ── Load snippets from storage ──
   function loadSnippets() {
-    chrome.storage.local.get('snippets', (result) => {
-      snippets = result.snippets || [];
-    });
+    try {
+      chrome.storage.local.get('snippets', (result) => {
+        snippets = result.snippets || [];
+      });
+    } catch {}
   }
 
   loadSnippets();
@@ -138,95 +136,23 @@
     sel.addRange(range);
   }
 
-  // ── Undo ──
-
-  function storeUndo(el, trigger, resolved) {
-    if (undoTimer) clearTimeout(undoTimer);
-
-    if (el) {
-      // Input / textarea: snapshot the full value before expansion
-      const start = el.selectionStart;
-      lastExpansion = {
-        isContentEditable: false,
-        el,
-        preValue:  el.value,
-        preCursor: start - trigger.length, // start of trigger in pre-expansion value
-        trigger,
-        resolved,
-      };
-    } else {
-      // Contenteditable: store enough to reverse the insertion
-      const sel = window.getSelection();
-      const anchorNode   = sel ? sel.anchorNode   : null;
-      const anchorOffset = sel ? sel.anchorOffset : 0;
-      lastExpansion = {
-        isContentEditable: true,
-        anchorNode,
-        anchorOffset,
-        trigger,
-        resolved,
-      };
-    }
-
-    undoTimer = setTimeout(() => { lastExpansion = null; }, 2000);
-  }
-
-  function undoLastExpansion() {
-    if (!lastExpansion) return;
-    clearTimeout(undoTimer);
-    const u = lastExpansion;
-    lastExpansion = null;
-
-    if (!u.isContentEditable) {
-      // Restore the pre-expansion value
-      const nativeSetter = getNativeSetter(u.el);
-      nativeSetter.call(u.el, u.preValue);
-      const restoredCursor = u.preCursor + u.trigger.length;
-      u.el.selectionStart = restoredCursor;
-      u.el.selectionEnd   = restoredCursor;
-      u.el.dispatchEvent(new Event('input',  { bubbles: true }));
-      u.el.dispatchEvent(new Event('change', { bubbles: true }));
-    } else {
-      // Delete the expanded text and re-insert the trigger
-      const sel = window.getSelection();
-      if (!sel || !u.anchorNode || u.anchorNode.nodeType !== Node.TEXT_NODE) return;
-      // After expansion the cursor is somewhere in the node; walk back resolved.length
-      const currentOffset = sel.anchorOffset;
-      const expandedEnd   = currentOffset;
-      const expandedStart = expandedEnd - u.resolved.length;
-      if (expandedStart < 0) return;
-      const range = document.createRange();
-      range.setStart(u.anchorNode, expandedStart);
-      range.setEnd(u.anchorNode, expandedEnd);
-      range.deleteContents();
-      const restored = document.createTextNode(u.trigger);
-      range.insertNode(restored);
-      range.setStart(restored, u.trigger.length);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-  }
-
-  // Catch Escape before the page does
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape' || !lastExpansion) return;
-    e.stopPropagation();
-    undoLastExpansion();
-  }, true);
-
   // ── Increment usage counter ──
 
   function incrementUsage(snippetId) {
-    chrome.storage.local.get('snippets', (result) => {
-      const arr = result.snippets || [];
-      const idx = arr.findIndex((s) => s.id === snippetId);
-      if (idx === -1) return;
-      arr[idx].usageCount = (arr[idx].usageCount || 0) + 1;
-      arr[idx].lastUsed   = new Date().toISOString();
-      chrome.storage.local.set({ snippets: arr });
-      snippets = arr;
-    });
+    try {
+      chrome.storage.local.get('snippets', (result) => {
+        if (chrome.runtime.lastError) return;
+        const arr = result.snippets || [];
+        const idx = arr.findIndex((s) => s.id === snippetId);
+        if (idx === -1) return;
+        arr[idx].usageCount = (arr[idx].usageCount || 0) + 1;
+        arr[idx].lastUsed   = new Date().toISOString();
+        try {
+          chrome.storage.local.set({ snippets: arr });
+          snippets = arr;
+        } catch {}
+      });
+    } catch {}
   }
 
   // ── Reserved ;snippd trigger to open popup ──
@@ -242,7 +168,7 @@
     } else {
       expandInContentEditable(POPUP_TRIGGER, '', null);
     }
-    chrome.runtime.sendMessage({ action: 'openPopup' });
+    try { chrome.runtime.sendMessage({ action: 'openPopup' }); } catch {}
     return true;
   }
 
@@ -261,7 +187,6 @@
       const snippet = matchTrigger(textBefore);
       if (snippet) {
         const { resolved, cursorOffset } = resolveVariables(snippet.expansion);
-        storeUndo(el, snippet.trigger, resolved);
         expandInInput(el, snippet.trigger, resolved, cursorOffset);
         incrementUsage(snippet.id);
       }
@@ -276,7 +201,6 @@
       const snippet = matchTrigger(textBefore);
       if (snippet) {
         const { resolved, cursorOffset } = resolveVariables(snippet.expansion);
-        storeUndo(null, snippet.trigger, resolved);
         expandInContentEditable(snippet.trigger, resolved, cursorOffset);
         incrementUsage(snippet.id);
       }
