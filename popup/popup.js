@@ -27,6 +27,7 @@
   const searchInput     = document.getElementById('search-input');
   const btnExport       = document.getElementById('btn-export');
   const importFile      = document.getElementById('import-file');
+  const varChips        = document.getElementById('var-chips');
 
   // ── Migration ──
   function migrate(arr) {
@@ -369,6 +370,21 @@
       inputNewCategory.classList.add('hidden');
       inputNewCategory.value = '';
     }
+  });
+
+  // ── Event: Variable chips ──
+  varChips.addEventListener('click', (e) => {
+    const chip = e.target.closest('.var-chip');
+    if (!chip) return;
+    const varText = chip.dataset.var;
+    const pos = inputExpansion.selectionStart;
+    const before = inputExpansion.value.substring(0, pos);
+    const after  = inputExpansion.value.substring(inputExpansion.selectionEnd);
+    inputExpansion.value = before + varText + after;
+    const newPos = pos + varText.length;
+    inputExpansion.selectionStart = newPos;
+    inputExpansion.selectionEnd   = newPos;
+    inputExpansion.focus();
   });
 
   // ── Event: Export ──

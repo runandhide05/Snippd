@@ -36,6 +36,15 @@
     <input type="text" id="input-trigger" placeholder=";email" maxlength="50" />
     <label for="input-expansion">Expansion</label>
     <textarea id="input-expansion" placeholder="Text that will replace the trigger..." maxlength="5000" rows="5"></textarea>
+    <div class="var-chips" id="var-chips">
+      <span class="var-chip" data-var="{{date}}">{{date}}</span>
+      <span class="var-chip" data-var="{{time}}">{{time}}</span>
+      <span class="var-chip" data-var="{{datetime}}">{{datetime}}</span>
+      <span class="var-chip" data-var="{{day}}">{{day}}</span>
+      <span class="var-chip" data-var="{{month}}">{{month}}</span>
+      <span class="var-chip" data-var="{{year}}">{{year}}</span>
+      <span class="var-chip" data-var="{{cursor}}">{{cursor}}</span>
+    </div>
     <label for="input-category">Category <span class="hint">(optional)</span></label>
     <div class="category-input-row">
       <select id="input-category"><option value="">— None —</option></select>
