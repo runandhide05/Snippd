@@ -131,7 +131,15 @@
     if (visible.length === 0) {
       emptyState.classList.remove('hidden');
       if (snippets.length === 0) {
-        emptyState.innerHTML = '<p>No snippets yet.</p><p>Click <strong>+ Add Snippet</strong> to create one.</p>';
+        emptyState.innerHTML = `
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="8" width="36" height="32" rx="4" stroke="#4f46e5" stroke-width="2.5" fill="none"/>
+            <line x1="13" y1="17" x2="35" y2="17" stroke="#4f46e5" stroke-width="2" stroke-linecap="round"/>
+            <line x1="13" y1="24" x2="28" y2="24" stroke="#4f46e5" stroke-width="2" stroke-linecap="round"/>
+            <line x1="13" y1="31" x2="22" y2="31" stroke="#4f46e5" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <p>Your snippets live here.</p>
+          <p>Click <strong>+ Add Snippet</strong> to create one.</p>`;
       } else {
         emptyState.innerHTML = '<p>No snippets match your search.</p>';
       }
@@ -144,18 +152,22 @@
       const item = document.createElement('div');
       item.className = 'snippet-item';
 
-      const usageLine = s.usageCount > 0
-        ? `<div class="snippet-meta active">Used ${s.usageCount} time${s.usageCount === 1 ? '' : 's'}</div>`
+      const preview = s.expansion ? escapeHtml(s.expansion.replace(/\n/g, ' ').slice(0, 80)) : '';
+
+      const catBadge   = s.category   ? `<span class="badge badge-cat">${escapeHtml(s.category)}</span>` : '';
+      const usageBadge = s.usageCount > 0
+        ? `<span class="badge badge-usage">${s.usageCount}×</span>`
         : '';
-      const catLine = s.category
-        ? `<div class="snippet-meta">${escapeHtml(s.category)}</div>`
+      const badges = (catBadge || usageBadge)
+        ? `<div class="snippet-badges">${catBadge}${usageBadge}</div>`
         : '';
 
       item.innerHTML = `
         <div class="snippet-info">
           <div class="snippet-label" title="${escapeHtml(s.label || s.trigger)}">${escapeHtml(s.label || s.trigger)}</div>
           <div class="snippet-trigger">${escapeHtml(s.trigger)}</div>
-          ${usageLine}${catLine}
+          ${preview ? `<div class="snippet-preview" title="${preview}">${preview}</div>` : ''}
+          ${badges}
         </div>
         <div class="snippet-actions">
           <button class="btn-icon edit"   data-id="${s.id}" title="Edit">Edit</button>
