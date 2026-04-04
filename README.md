@@ -64,7 +64,7 @@ Type `;email`  get your full email template. Type `;addr`  get your full address
 
 ### Dynamic Variables
 
-Add live values to any snippet using `{{variable}}` placeholders — they're replaced with the current date, time, and more the moment you expand the trigger.
+Add live values to any snippet using `{{variable}}` placeholders - they're replaced with the current date, time, and more the moment you expand the trigger.
 
 | Variable | Example Output |
 |----------|---------------|
@@ -77,9 +77,9 @@ Add live values to any snippet using `{{variable}}` placeholders — they're rep
 | `{{year}}` | 2026 |
 | `{{cursor}}` | *(places your cursor here after expansion)* |
 
-**Example** — a snippet with trigger `;note` and expansion:
+**Example** - a snippet with trigger `;note` and expansion:
 ```
-{{date}} — 
+{{date}} - 
 {{cursor}}
 ```
 Expands to today's date on the first line, with your cursor ready to type on the second line.
@@ -102,8 +102,8 @@ Expands to today's date on the first line, with your cursor ready to type on the
 - [x] Snippet usage counter
 
 ### V3  Live 
-- [x] Dynamic variables — `{{date}}`, `{{time}}`, `{{datetime}}`, `{{day}}`, `{{month}}`, `{{year}}`, `{{cursor}}`
-- [x] UI redesign — snippet cards, gradient header, expansion previews
+- [x] Dynamic variables - `{{date}}`, `{{time}}`, `{{datetime}}`, `{{day}}`, `{{month}}`, `{{year}}`, `{{cursor}}`
+- [x] UI redesign - snippet cards, gradient header, expansion previews
 
 ---
 
