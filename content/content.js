@@ -1,7 +1,11 @@
 (() => {
   let snippets = [];
 
-  // Load snippets from storage
+  // ── Undo state ──
+  let lastExpansion = null;
+  let undoTimer = null;
+
+  // ── Load snippets from storage ──
   function loadSnippets() {
     chrome.storage.local.get('snippets', (result) => {
       snippets = result.snippets || [];
@@ -17,7 +21,40 @@
     }
   });
 
-  // Get the text before the cursor in an input/textarea
+  // ── Variable resolution ──
+
+  // Minimal date formatter: supports YYYY, MM, M, DD, D tokens
+  function formatDate(date, fmt) {
+    return fmt
+      .replace('YYYY', date.getFullYear())
+      .replace('MM',   String(date.getMonth() + 1).padStart(2, '0'))
+      .replace('M',    date.getMonth() + 1)
+      .replace('DD',   String(date.getDate()).padStart(2, '0'))
+      .replace('D',    date.getDate());
+  }
+
+  // Resolves {{variable}} placeholders. Returns { resolved, cursorOffset }.
+  // cursorOffset is null if {{cursor}} is not present.
+  function resolveVariables(text) {
+    const now = new Date();
+    let resolved = text
+      .replace(/\{\{date:([^}]+)\}\}/gi, (_, fmt) => formatDate(now, fmt))
+      .replace(/\{\{date\}\}/gi, now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))
+      .replace(/\{\{time\}\}/gi, now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
+      .replace(/\{\{datetime\}\}/gi, now.toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }))
+      .replace(/\{\{day\}\}/gi, now.toLocaleDateString('en-US', { weekday: 'long' }))
+      .replace(/\{\{month\}\}/gi, now.toLocaleDateString('en-US', { month: 'long' }))
+      .replace(/\{\{year\}\}/gi, String(now.getFullYear()));
+
+    const cursorOffset = resolved.indexOf('{{cursor}}');
+    if (cursorOffset !== -1) {
+      resolved = resolved.replace('{{cursor}}', '');
+    }
+    return { resolved, cursorOffset: cursorOffset === -1 ? null : cursorOffset };
+  }
+
+  // ── Cursor helpers ──
+
   function getTextBeforeCursor(el) {
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
       return el.value.substring(0, el.selectionStart);
@@ -25,25 +62,22 @@
     return null;
   }
 
-  // Get the text before the cursor in a contenteditable element
   function getTextBeforeCursorContentEditable() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
     const range = sel.getRangeAt(0).cloneRange();
     range.collapse(true);
-    // Move to start of container
     range.setStart(sel.anchorNode, 0);
     return range.toString();
   }
 
-  // Check if a trigger matches at the end of text and is preceded by
-  // whitespace or the start of the field
+  // ── Trigger matching ──
+
   function matchTrigger(textBefore) {
     for (const snippet of snippets) {
       const trigger = snippet.trigger;
       if (!trigger || !textBefore.endsWith(trigger)) continue;
       const preceding = textBefore.slice(0, textBefore.length - trigger.length);
-      // Trigger must be at start of field or preceded by whitespace
       if (preceding.length === 0 || /\s$/.test(preceding)) {
         return snippet;
       }
@@ -51,8 +85,18 @@
     return null;
   }
 
-  // Replace trigger with expansion in input/textarea
-  function expandInInput(el, trigger, expansion) {
+  // ── Expansion: input / textarea ──
+
+  function getNativeSetter(el) {
+    const proto = el.tagName === 'TEXTAREA'
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype;
+    return Object.getOwnPropertyDescriptor(proto, 'value').set;
+  }
+
+  // expansion = already-resolved string. cursorOffset = position within expansion
+  // where the cursor should land (null = end of expansion).
+  function expandInInput(el, trigger, expansion, cursorOffset) {
     const start = el.selectionStart;
     const value = el.value;
     const triggerStart = start - trigger.length;
@@ -61,30 +105,23 @@
       expansion +
       value.substring(start);
 
-    // Use the native prototype setter so React/Vue controlled inputs
-    // recognize the change (direct el.value= assignment bypasses their
-    // internal tracking and gets reverted on the next render)
-    const proto =
-      el.tagName === 'TEXTAREA'
-        ? window.HTMLTextAreaElement.prototype
-        : window.HTMLInputElement.prototype;
-    const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+    const nativeSetter = getNativeSetter(el);
     nativeSetter.call(el, newValue);
 
-    const newCursor = triggerStart + expansion.length;
+    const newCursor = triggerStart + (cursorOffset !== null ? cursorOffset : expansion.length);
     el.selectionStart = newCursor;
-    el.selectionEnd = newCursor;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.selectionEnd   = newCursor;
+    el.dispatchEvent(new Event('input',  { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  // Replace trigger with expansion in contenteditable
-  function expandInContentEditable(trigger, expansion) {
+  // ── Expansion: contenteditable ──
+
+  function expandInContentEditable(trigger, expansion, cursorOffset) {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
-    // Walk back trigger.length characters to select the trigger text
-    const anchorNode = range.startContainer;
+    const anchorNode   = range.startContainer;
     const anchorOffset = range.startOffset;
     if (anchorNode.nodeType !== Node.TEXT_NODE) return;
     const triggerStart = anchorOffset - trigger.length;
@@ -93,47 +130,125 @@
     range.deleteContents();
     const textNode = document.createTextNode(expansion);
     range.insertNode(textNode);
-    // Move cursor to end of inserted text
-    range.setStartAfter(textNode);
+    // Position cursor
+    const finalOffset = cursorOffset !== null ? cursorOffset : expansion.length;
+    range.setStart(textNode, finalOffset);
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
   }
 
-  // Increment usageCount and update lastUsed for a snippet
+  // ── Undo ──
+
+  function storeUndo(el, trigger, resolved) {
+    if (undoTimer) clearTimeout(undoTimer);
+
+    if (el) {
+      // Input / textarea: snapshot the full value before expansion
+      const start = el.selectionStart;
+      lastExpansion = {
+        isContentEditable: false,
+        el,
+        preValue:  el.value,
+        preCursor: start - trigger.length, // start of trigger in pre-expansion value
+        trigger,
+        resolved,
+      };
+    } else {
+      // Contenteditable: store enough to reverse the insertion
+      const sel = window.getSelection();
+      const anchorNode   = sel ? sel.anchorNode   : null;
+      const anchorOffset = sel ? sel.anchorOffset : 0;
+      lastExpansion = {
+        isContentEditable: true,
+        anchorNode,
+        anchorOffset,
+        trigger,
+        resolved,
+      };
+    }
+
+    undoTimer = setTimeout(() => { lastExpansion = null; }, 2000);
+  }
+
+  function undoLastExpansion() {
+    if (!lastExpansion) return;
+    clearTimeout(undoTimer);
+    const u = lastExpansion;
+    lastExpansion = null;
+
+    if (!u.isContentEditable) {
+      // Restore the pre-expansion value
+      const nativeSetter = getNativeSetter(u.el);
+      nativeSetter.call(u.el, u.preValue);
+      const restoredCursor = u.preCursor + u.trigger.length;
+      u.el.selectionStart = restoredCursor;
+      u.el.selectionEnd   = restoredCursor;
+      u.el.dispatchEvent(new Event('input',  { bubbles: true }));
+      u.el.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      // Delete the expanded text and re-insert the trigger
+      const sel = window.getSelection();
+      if (!sel || !u.anchorNode || u.anchorNode.nodeType !== Node.TEXT_NODE) return;
+      // After expansion the cursor is somewhere in the node; walk back resolved.length
+      const currentOffset = sel.anchorOffset;
+      const expandedEnd   = currentOffset;
+      const expandedStart = expandedEnd - u.resolved.length;
+      if (expandedStart < 0) return;
+      const range = document.createRange();
+      range.setStart(u.anchorNode, expandedStart);
+      range.setEnd(u.anchorNode, expandedEnd);
+      range.deleteContents();
+      const restored = document.createTextNode(u.trigger);
+      range.insertNode(restored);
+      range.setStart(restored, u.trigger.length);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+
+  // Catch Escape before the page does
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !lastExpansion) return;
+    e.stopPropagation();
+    undoLastExpansion();
+  }, true);
+
+  // ── Increment usage counter ──
+
   function incrementUsage(snippetId) {
     chrome.storage.local.get('snippets', (result) => {
       const arr = result.snippets || [];
       const idx = arr.findIndex((s) => s.id === snippetId);
       if (idx === -1) return;
       arr[idx].usageCount = (arr[idx].usageCount || 0) + 1;
-      arr[idx].lastUsed = new Date().toISOString();
+      arr[idx].lastUsed   = new Date().toISOString();
       chrome.storage.local.set({ snippets: arr });
       snippets = arr;
     });
   }
 
-  // Reserved trigger to open the popup
+  // ── Reserved ;snippd trigger to open popup ──
+
   const POPUP_TRIGGER = ';snippd';
 
   function tryOpenPopup(textBefore, el) {
-    const preceding = textBefore.slice(0, textBefore.length - POPUP_TRIGGER.length);
     if (!textBefore.endsWith(POPUP_TRIGGER)) return false;
+    const preceding = textBefore.slice(0, textBefore.length - POPUP_TRIGGER.length);
     if (preceding.length > 0 && !/\s$/.test(preceding)) return false;
-
-    // Delete the trigger text then open the popup
     if (el) {
-      expandInInput(el, POPUP_TRIGGER, '');
+      expandInInput(el, POPUP_TRIGGER, '', null);
     } else {
-      expandInContentEditable(POPUP_TRIGGER, '');
+      expandInContentEditable(POPUP_TRIGGER, '', null);
     }
     chrome.runtime.sendMessage({ action: 'openPopup' });
     return true;
   }
 
-  // Main keyup handler
+  // ── Main keyup handler ──
+
   function onKeyUp(e) {
-    // Ignore modifier-only, arrow, and other non-character keys
     if (e.ctrlKey || e.altKey || e.metaKey) return;
 
     const el = e.target;
@@ -145,7 +260,9 @@
       if (!snippets.length) return;
       const snippet = matchTrigger(textBefore);
       if (snippet) {
-        expandInInput(el, snippet.trigger, snippet.expansion);
+        const { resolved, cursorOffset } = resolveVariables(snippet.expansion);
+        storeUndo(el, snippet.trigger, resolved);
+        expandInInput(el, snippet.trigger, resolved, cursorOffset);
         incrementUsage(snippet.id);
       }
       return;
@@ -158,7 +275,9 @@
       if (!snippets.length) return;
       const snippet = matchTrigger(textBefore);
       if (snippet) {
-        expandInContentEditable(snippet.trigger, snippet.expansion);
+        const { resolved, cursorOffset } = resolveVariables(snippet.expansion);
+        storeUndo(null, snippet.trigger, resolved);
+        expandInContentEditable(snippet.trigger, resolved, cursorOffset);
         incrementUsage(snippet.id);
       }
     }
@@ -166,11 +285,7 @@
 
   document.addEventListener('keyup', onKeyUp, true);
 
-  // Watch for dynamically added inputs (Gmail, SPAs, etc.)
-  const observer = new MutationObserver(() => {
-    // No extra work needed — event delegation on document catches all elements
-    // Observer is here in case future versions need per-element setup
-  });
-
+  // MutationObserver kept for future per-element setup if needed
+  const observer = new MutationObserver(() => {});
   observer.observe(document.body, { childList: true, subtree: true });
 })();
